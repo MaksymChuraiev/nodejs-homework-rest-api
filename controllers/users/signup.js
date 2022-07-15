@@ -1,7 +1,8 @@
 const bcrypt = require("bcryptjs");
 const gravatar = require("gravatar");
+const idGenerate = require("bson-objectid");
 const { User } = require("../../models/user");
-const { createError } = require("../../helpers");
+const { createError, sendMail } = require("../../helpers");
 
 const signup = async (req, res) => {
   const { email, password } = req.body;
@@ -13,11 +14,20 @@ const signup = async (req, res) => {
 
   const hashPassword = await bcrypt.hash(password, 10);
   const avatarURL = gravatar.url(email);
+  const verificationToken = idGenerate();
+
   const result = await User.create({
     ...req.body,
     password: hashPassword,
     avatarURL,
+    verificationToken,
   });
+
+  const mail = {
+    to: email,
+    subject: "Website registration confirmation",
+    html: `<a target='_blank' href="http://localhost:3000/api/users/verify/${verificationToken}">Click to confirm</a>`,
+  };
 
   res.status(201).json({
     status: "success",
@@ -26,9 +36,13 @@ const signup = async (req, res) => {
       user: {
         email: result.email,
         subscription: result.subscription,
+        avatarURL,
+        verificationToken,
       },
     },
   });
+
+  await sendMail(mail);
 };
 
 module.exports = signup;
